@@ -1,5 +1,5 @@
-{inputs, ...}: self: super: let
-  inherit (super.vimUtils) buildVimPlugin;
+{inputs, ...}: _final: prev: let
+  inherit (prev.vimUtils) buildVimPlugin;
 
   plugins =
     builtins.filter

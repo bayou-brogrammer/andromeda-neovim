@@ -13,16 +13,16 @@
         "pre-commit-hooks": "pre-commit-hooks"
       },
       "locked": {
+        "dirtyRev": "cc27fc23cc7c4f11507556f00e064e72c0b08e72-dirty",
+        "dirtyShortRev": "cc27fc2-dirty",
         "lastModified": 1700446136,
-        "narHash": "sha256-gZxnilzoTLZLwK26dEph7qnSt+t8M+2wwNTkjXDXXro=",
-        "rev": "cc27fc23cc7c4f11507556f00e064e72c0b08e72",
-        "revCount": 67,
-        "type": "tarball",
-        "url": "https://api.flakehub.com/f/pinned/milkyway-org/andromeda-lib/0.1.67%2Brev-cc27fc23cc7c4f11507556f00e064e72c0b08e72/018bea7d-663e-7f36-9feb-68cad49a7f6c/source.tar.gz"
+        "narHash": "sha256-DpXHQORWpP53n2yKUINFQSELCBx1n7KuuzRG3Izpsz4=",
+        "type": "git",
+        "url": "file:///home/n16hth4wk/dev/nixos/andromeda-lib"
       },
       "original": {
-        "type": "tarball",
-        "url": "https://flakehub.com/f/milkyway-org/andromeda-lib/0.1.%2A.tar.gz"
+        "type": "git",
+        "url": "file:///home/n16hth4wk/dev/nixos/andromeda-lib"
       }
     },
     "beautysh": {

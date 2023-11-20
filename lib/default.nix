@@ -6,33 +6,24 @@
     extraName ? "",
     configure ? {},
     viAlias ? false,
+    # With
     withRuby ? true,
     vimAlias ? false,
     withPython3 ? true,
     withNodeJs ? false,
+    # Extras
+    extraLuaPackages ? [],
+    extraPythonPackages ? [],
+    extraPython3Packages ? [],
     extraMakeWrapperArgs ? "",
-    extraLuaPackages ? (_: []),
-    extraPythonPackages ? (_: []),
-    extraPython3Packages ? (_: []),
   }: let
-    # and removed an error that doesnt make sense for my flake.
-    plugins = pkgs.lib.flatten (pkgs.lib.mapAttrsToList genPlugin (configure.packages or {}));
-    genPlugin = packageName: {
-      opt ? [],
-      start ? [],
-    }:
-      start
-      ++ (map (p: {
-          plugin = p;
-          optional = true;
-        })
-        opt);
-
     res = pkgs.neovimUtils.makeNeovimConfig {
+      inherit extraLuaPackages extraPython3Packages extraPythonPackages;
+      inherit withNodeJs withRuby withPython3;
+      inherit extraName viAlias vimAlias;
+
+      plugins = configure.plugins or [];
       customRC = configure.customRC or "";
-      inherit plugins extraName withPython3;
-      inherit withNodeJs withRuby viAlias vimAlias;
-      inherit extraLuaPackages extraPython3Packages;
     };
   in
     pkgs.wrapNeovimUnstable neovim (res
@@ -40,7 +31,7 @@
         # and changed this
         inherit wrapRc;
         wrapperArgs =
-          pkgs.lib.escapeShellArgs res.wrapperArgs
+          lib.escapeShellArgs res.wrapperArgs
           + " "
           + extraMakeWrapperArgs;
       });
@@ -48,19 +39,21 @@
   # Source: https://github.com/NixOS/nixpkgs/blob/41de143fda10e33be0f47eab2bfe08a50f234267/pkgs/applications/editors/neovim/utils.nix#L24C9-L24C9
   # this is the code for wrapNeovim from nixpkgs
   wrapNeovim = pkgs: neovim-unwrapped:
-    pkgs.lib.makeOverridable
+    lib.makeOverridable
     (legacyWrapper pkgs neovim-unwrapped);
 
   NeovimBuilder = {
     self,
     pkgs,
+    # Settings
     settings ? {},
     neovimPlugins ? {},
+    treesitterParsers ? {},
+    # Wrappers
     extraWrapperArgs ? {},
     lspsAndRuntimeDeps ? {},
     environmentVariables ? {},
     propagatedBuildInputs ? [],
-    sources ? import ../nix/sources.nix,
     # Extra packages
     extraLuaPackages ? {},
     extraPythonPackages ? {},
@@ -79,13 +72,8 @@
       }
       // settings;
 
-    pluginDir = pkgs.linkFarm "nvim-plugins" (lib.mapAttrsToList (n: v: {
-        name = n;
-        path = v;
-      })
-      pkgs.neovimPlugins);
-
-    parserDir = lib.milkyvim.generateTreesitterGrammar pkgs sources;
+    pluginDir = lib.milkyvim.generateNeovimPlugins pkgs neovimPlugins;
+    parserDir = lib.milkyvim.generateTreesitterGrammar pkgs treesitterParsers;
 
     # package the entire flake as plugin
     LuaConfig = pkgs.stdenv.mkDerivation {
@@ -98,6 +86,25 @@
         mkdir -p $out/plugins
         cp -r ${pluginDir}/* $out/plugins
 
+        mkdir -p $out/parsers
+        cp -r ${parserDir}/* $out/parsers
+      '';
+    };
+
+    # package the entire flake as plugin
+    Plugins = pkgs.stdenv.mkDerivation {
+      name = config.RCName + "-plugins";
+      builder = pkgs.writeText "builder.sh" ''
+        source $stdenv/setup
+        mkdir -p $out/plugins
+        cp -r ${pluginDir}/* $out/plugins
+      '';
+    };
+
+    Parsers = pkgs.stdenv.mkDerivation {
+      name = config.RCName + "-parsers";
+      builder = pkgs.writeText "builder.sh" ''
+        source $stdenv/setup
         mkdir -p $out/parsers
         cp -r ${parserDir}/* $out/parsers
       '';
@@ -116,32 +123,38 @@
 
     extraPlugins =
       if wrapRc
-      then [LuaConfig]
+      then
+        [LuaConfig Plugins]
+        ++ lib.optional (treesitterParsers != {}) Parsers
       else [];
 
     # add any dependencies/lsps/whatever we need available at runtime
     wrapRuntimeDeps =
       builtins.map
-      (value: ''--prefix PATH : "${pkgs.lib.makeBinPath [value]}"'');
+      (value: ''--prefix PATH : "${lib.makeBinPath [value]}"'');
 
-    # I didnt add stdenv.cc.cc.lib, so I would suggest not removing it.
-    # It has cmake in it I think among other things?
-    buildInputs = [pkgs.stdenv.cc.cc.lib] ++ propagatedBuildInputs;
-
-    environmentVars =
+    wrappedRuntimeDeps =
+      wrapRuntimeDeps lspsAndRuntimeDeps;
+    wrappedEnvironmentVars =
       lib.mapAttrsToList (name: value: ''--set ${name} "${value}"'')
       (environmentVariables // {NVIM_PATH = "${LuaConfig}";});
 
     # cat our args
     extraMakeWrapperArgs = builtins.concatStringsSep " " (
-      (wrapRuntimeDeps lspsAndRuntimeDeps)
-      ++ environmentVars
+      wrappedRuntimeDeps
+      ++ wrappedEnvironmentVars
       ++ extraWrapperArgs
       # https://github.com/NixOS/nixpkgs/blob/master/pkgs/build-support/setup-hooks/make-wrapper.sh
     );
 
+    # I didnt add stdenv.cc.cc.lib, so I would suggest not removing it.
+    # It has cmake in it I think among other things?
+    buildInputs =
+      [pkgs.stdenv.cc.cc.lib]
+      ++ propagatedBuildInputs;
+
     # add our propagated build dependencies
-    myNeovimUnwrapped = pkgs.neovim-unwrapped.overrideAttrs (prev: {
+    myNeovimUnwrapped = pkgs.neovim-unwrapped.overrideAttrs (_: {
       propagatedBuildInputs = buildInputs;
     });
 
@@ -150,21 +163,19 @@
     # this is used for the fields in the wrapper where the default value is (_: [])
     combineCatsOfFuncs = sect: (x: let
       appliedfunctions = builtins.map (value: value x) sect;
-      combinedFuncRes = builtins.concatLists appliedfunctions;
-      uniquifiedList = pkgs.lib.unique combinedFuncRes;
+      uniquifiedList = lib.unique (builtins.concatLists appliedfunctions);
     in
       uniquifiedList);
   in
     # add our lsps and plugins and our config, and wrap it all up!
     wrapNeovim pkgs myNeovimUnwrapped {
-      inherit wrapRc extraMakeWrapperArgs;
+      inherit extraMakeWrapperArgs;
+      # inherit wrapRc extraMakeWrapperArgs;
       inherit (config) vimAlias viAlias withRuby extraName withNodeJs withPython3;
 
       configure = {
         inherit customRC;
-        packages.myVimPackage = {
-          start = extraPlugins ++ [pkgs.neovimPlugins.lazy-nvim];
-        };
+        plugins = extraPlugins ++ [pkgs.neovimPlugins.lazy-nvim];
       };
 
       extraLuaPackages = combineCatsOfFuncs extraLuaPackages;

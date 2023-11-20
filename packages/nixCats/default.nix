@@ -10,10 +10,10 @@
   # with a boolean value for each, and a set of settings
   # and then it imports NeovimBuilder.nix, passing it that categories set but also
   # our other information. This allows us to define our categories later.
-  nixVimBuilder = settings: (lib.NeovimBuilder {
-    inherit pkgs settings;
+  nixVimBuilder = settings: (lib.milkyvim.NeovimBuilder {
+    inherit (pkgs) neovimPlugins treesitterParsers;
     inherit (inputs) self;
-    inherit (pkgs) neovimPlugins;
+    inherit pkgs settings;
 
     # propagatedBuildInputs:
     # this section is for dependencies that should be available
@@ -53,14 +53,10 @@
   });
 
   settings = {
-    nixCats = {
-      wrapRc = true;
-      viAlias = true;
-      vimAlias = true;
-      RCName = "milkyvim";
-    };
+    wrapRc = true;
+    viAlias = true;
+    vimAlias = true;
+    RCName = "milkyvim";
   };
-
-  nixCats = nixVimBuilder settings.nixCats;
 in
-  nixCats
+  nixVimBuilder settings
