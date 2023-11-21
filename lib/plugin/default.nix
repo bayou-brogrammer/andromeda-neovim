@@ -1,7 +1,7 @@
 {lib, ...}: let
-  inherit (lib) mapAttrs filterAttrs hasPrefix removePrefix replaceStrings;
+  inherit (lib) mapAttrs' mapAttrs nameValuePair filterAttrs hasPrefix removePrefix replaceStrings;
   inherit (lib.milkyvim) genAttrs';
-in rec {
+in {
   # -------------- #
   # {Plugin}
   # -------------- #
@@ -13,26 +13,28 @@ in rec {
     input;
 
   generateNeovimPlugins = pkgs: sources: let
-    inherit (pkgs.vimUtils) buildVimPlugin;
-
-    plugins =
-      builtins.filter
-      (s: (builtins.match "plugins-.*" s) != null)
-      (builtins.attrNames sources);
-
-    buildPlug = name:
-      buildVimPlugin {
-        version = "master";
-        pname = getPluginName name;
-        src = builtins.getAttr name sources;
+    buildPlugin = name: source:
+      pkgs.vimUtils.buildVimPlugin {
+        src = source;
+        name = "${name}-${source.rev}";
+        namePrefix = ""; # Clear name prefix
       };
 
-    neovimPlugins = builtins.listToAttrs (map
-      (plugin: {
-        value = buildPlug plugin;
-        name = getPluginName plugin;
-      })
-      plugins);
+    generatedPluginSources =
+      mapAttrs'
+      (n: v: nameValuePair (builtins.replaceStrings ["plugin-"] [""] n) v)
+      (filterAttrs (n: _: hasPrefix "plugin-" n) sources);
+
+    generatedPlugins =
+      mapAttrs buildPlugin generatedPluginSources;
+
+    neovimPlugins =
+      generatedPlugins
+      // {
+        # Add plugins you want synced with nixpkgs here, or override
+        # existing ones from the generated plugin set.
+        inherit (pkgs.vimPlugins) nvim-treesitter nvim-treesitter-textobjects nvim-treesitter-refactor;
+      };
   in
     pkgs.linkFarm "nvim-plugins" (lib.mapAttrsToList (n: v: {
         name = n;

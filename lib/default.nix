@@ -1,53 +1,5 @@
-{lib, ...}: rec {
-  # and this is the code from neovimUtils that it calls
-  legacyWrapper = pkgs: neovim: {
-    # except I also passed this through
-    wrapRc ? true,
-    extraName ? "",
-    configure ? {},
-    viAlias ? false,
-    # With
-    withRuby ? true,
-    vimAlias ? false,
-    withPython3 ? true,
-    withNodeJs ? false,
-    # Extras
-    extraLuaPackages ? [],
-    extraPythonPackages ? [],
-    extraPython3Packages ? [],
-    extraMakeWrapperArgs ? "",
-  }: let
-    genPlugin = packageName: {start ? []}: start;
-
-    plugins =
-      pkgs.lib.flatten (pkgs.lib.mapAttrsToList
-        genPlugin (configure.packages or {}));
-
-    res = pkgs.neovimUtils.makeNeovimConfig {
-      inherit extraLuaPackages extraPython3Packages extraPythonPackages;
-      inherit withNodeJs withRuby withPython3;
-      inherit extraName viAlias vimAlias;
-      inherit plugins;
-
-      customRC = configure.customRC or "";
-    };
-  in
-    pkgs.wrapNeovimUnstable neovim (res
-      // {
-        # and changed this
-        inherit wrapRc;
-        wrapperArgs =
-          lib.escapeShellArgs res.wrapperArgs
-          + " "
-          + extraMakeWrapperArgs;
-      });
-
-  # Source: https://github.com/NixOS/nixpkgs/blob/41de143fda10e33be0f47eab2bfe08a50f234267/pkgs/applications/editors/neovim/utils.nix#L24C9-L24C9
-  # this is the code for wrapNeovim from nixpkgs
-  wrapNeovim = pkgs: neovim-unwrapped:
-    lib.makeOverridable
-    (legacyWrapper pkgs neovim-unwrapped);
-
+{lib, ...}:
+with lib.milkyvim; {
   NeovimBuilder = {
     self,
     pkgs,
@@ -77,36 +29,8 @@
       }
       // settings;
 
-    buildPlugin = name: source:
-      pkgs.vimUtils.buildVimPlugin {
-        src = source;
-        name = "${name}-${source.rev}";
-        namePrefix = ""; # Clear name prefix
-      };
-
-    generatedPluginSources = with lib;
-      mapAttrs'
-      (n: v: nameValuePair (builtins.replaceStrings ["plugin-"] [""] n) v)
-      (filterAttrs (n: _: hasPrefix "plugin-" n) sources);
-
-    generatedPlugins = with lib;
-      mapAttrs buildPlugin generatedPluginSources;
-
-    plugins =
-      generatedPlugins
-      // {
-        # Add plugins you want synced with nixpkgs here, or override
-        # existing ones from the generated plugin set.
-        inherit (pkgs.vimPlugins) nvim-treesitter nvim-treesitter-textobjects nvim-treesitter-refactor;
-      };
-
-    pluginDir = with lib;
-      pkgs.linkFarm "nvim-plugins" (mapAttrsToList (n: v: {
-          name = n;
-          path = v;
-        })
-        plugins);
-    # parserDir = lib.milkyvim.generateTreesitterGrammar pkgs sources;
+    pluginDir = generateNeovimPlugins pkgs sources;
+    parserDir = generateTreesitterGrammar pkgs sources;
 
     # package the entire flake as plugin
     LuaConfig = pkgs.stdenv.mkDerivation {
@@ -118,27 +42,11 @@
 
         mkdir -p $out/plugins
         cp -r ${pluginDir}/* $out/plugins
+
+        mkdir -p $out/parsers
+        cp -r ${parserDir}/* $out/parsers
       '';
     };
-
-    # package the entire flake as plugin
-    # Plugins = pkgs.stdenv.mkDerivation {
-    #   name = config.RCName + "-plugins";
-    #   builder = pkgs.writeText "builder.sh" ''
-    #     source $stdenv/setup
-    #     mkdir -p $out/plugins
-    #     cp -r ${pluginDir}/* $out/plugins
-    #   '';
-    # };
-
-    # Parsers = pkgs.stdenv.mkDerivation {
-    #   name = config.RCName + "-parsers";
-    #   builder = pkgs.writeText "builder.sh" ''
-    #     source $stdenv/setup
-    #     mkdir -p $out/parsers
-    #     cp -r ${parserDir}/* $out/parsers
-    #   '';
-    # };
 
     wrapRc =
       if config.RCName != ""
@@ -207,9 +115,7 @@
 
       configure = {
         inherit customRC;
-        packages.myVimPackage = {
-          inherit start;
-        };
+        plugins = extraPlugins ++ [pkgs.vimPlugins.lazy-nvim];
       };
 
       extraLuaPackages = combineCatsOfFuncs extraLuaPackages;

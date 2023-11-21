@@ -15,9 +15,5 @@ options.json
 
 # Running `nixos-rebuild build` or `nix build` generates a result directory.
 result*
-./core
-
-secrets/*.key
-keys/
 
 *.sqlite
