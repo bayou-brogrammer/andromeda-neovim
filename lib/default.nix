@@ -62,7 +62,6 @@ with lib.milkyvim; {
     extraPlugins =
       if wrapRc
       then [LuaConfig]
-      # ++ lib.optional (treesitterParsers != {}) Parsers
       else [];
 
     # add any dependencies/lsps/whatever we need available at runtime
@@ -103,10 +102,6 @@ with lib.milkyvim; {
       uniquifiedList = lib.unique (builtins.concatLists appliedfunctions);
     in
       uniquifiedList);
-
-    start =
-      extraPlugins
-      ++ [pkgs.vimPlugins.lazy-nvim];
   in
     # add our lsps and plugins and our config, and wrap it all up!
     wrapNeovim pkgs myNeovimUnwrapped {
