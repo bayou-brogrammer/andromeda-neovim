@@ -29,7 +29,7 @@ setmetatable(M, {
 			return LazyUtil[k]
 		end
 
-		---@diagnostic disable-next-line: no-unknown
+		-- ---@diagnostic disable-next-line: no-unknown
 		t[k] = require("milkyvim.utils." .. k)
 		return t[k]
 	end,

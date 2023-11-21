@@ -21,17 +21,18 @@
         overlays = with inputs; [
           devshell.overlays.default
           nixd.outputs.overlays.default
+          neovim-nightly-overlay.overlay
         ];
 
         ##########
         # ALIAS
         ##########
         alias = {
+          packages.default = "nixCats";
           shells.default = "milkyvim-shell";
         };
 
         outputs-builder = channels: {
-          # packages.default = nixCats;
           formatter = channels.nixpkgs.alejandra;
 
           checks.pre-commit-check = inputs.pre-commit-hooks.lib.${channels.nixpkgs.system}.run {
@@ -66,20 +67,7 @@
     # but you could also import the package itself instead.
     # overlays are just nice if they are offered.
     nixd.url = "https://flakehub.com/f/nix-community/nixd/1.2.*.tar.gz";
-  };
-
-  inputs = {
-    # Core
-    "plugins-lazy-nvim" = {
-      url = "github:folke/lazy.nvim";
-      flake = false;
-    };
-
-    # Core
-    "plugins-catppuccin.nvim" = {
-      url = "github:catppuccin/nvim";
-      flake = false;
-    };
+    neovim-nightly-overlay.url = "github:nix-community/neovim-nightly-overlay";
   };
 
   #***********************

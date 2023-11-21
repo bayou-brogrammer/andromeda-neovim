@@ -2,6 +2,7 @@
   lib,
   pkgs,
   inputs,
+  sources ? (import (lib.andromeda.fs.get-file "nix/sources.nix")),
   ...
 }: let
   # Now that our plugin inputs/overlays and pkgs have been defined,
@@ -11,9 +12,8 @@
   # and then it imports NeovimBuilder.nix, passing it that categories set but also
   # our other information. This allows us to define our categories later.
   nixVimBuilder = settings: (lib.milkyvim.NeovimBuilder {
-    inherit (pkgs) neovimPlugins treesitterParsers;
+    inherit pkgs settings sources;
     inherit (inputs) self;
-    inherit pkgs settings;
 
     # propagatedBuildInputs:
     # this section is for dependencies that should be available
