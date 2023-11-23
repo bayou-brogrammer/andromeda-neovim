@@ -1,5 +1,5 @@
 {
-  description = "Jake Hamilton's Neovim configuration";
+  description = "n16hth4wk configuration";
 
   outputs = inputs: let
     milkyvim = {
